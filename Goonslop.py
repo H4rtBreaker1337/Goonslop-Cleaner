@@ -4,6 +4,8 @@ import json
 import logging
 import sys
 from pathlib import Path
+# I edited the files in an attempt to make webms work. (they dont have consistant hashes and webms with metadata are rare. I will look more into it later ts pmo)
+#from metadata_cleaner.remover_edited import remove_metadata
 from metadata_cleaner.remover import remove_metadata
 
 cwd = os.path.dirname(os.path.abspath(__file__))
@@ -102,9 +104,16 @@ try:
             def process_file(file):
                 logging.info(f'Processing file: {file}')
                 unclean_file_path = Path(file).resolve()
-                file_path = remove_metadata(unclean_file_path, config_file=config_file)
-                file_path = Path(file_path).resolve()
-                Path.unlink(unclean_file_path)
+                base, ext = os.path.splitext(unclean_file_path)
+                if str(ext).lower() != '.webm':
+                    if '_cleaned' not in base.lower():
+                        file_path = remove_metadata(str(unclean_file_path), config_file=config_file)
+                        file_path = Path(file_path).resolve()
+                        Path.unlink(unclean_file_path)
+                    else:
+                        file_path = unclean_file_path
+                else:
+                    file_path = unclean_file_path
                 file_hash = hash_file(str(file_path))
                 file_entry = {
                     'path': str(file_path)
