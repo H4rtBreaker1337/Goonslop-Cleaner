@@ -1,0 +1,6 @@
+.venv/
+settings.json
+duplicates.txt
+logs.txt
+database.json
+.vscode/
