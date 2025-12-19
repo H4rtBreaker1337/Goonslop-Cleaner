@@ -1,0 +1,9 @@
+{
+    "Orientation": false,
+    "GPS": "remove",
+    "Timestamp": "remove",
+    "CameraSettings": "remove",
+    "Descriptions": false,
+    "Thumbnail": false,
+    "ImageMetrics": false
+}

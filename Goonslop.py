@@ -1,16 +1,14 @@
 import hashlib
 import os
-from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import sys
 from pathlib import Path
-import threading
+from metadata_cleaner.remover import remove_metadata
 
-
-db_lock = threading.Lock()
 cwd = os.path.dirname(os.path.abspath(__file__))
 log_file = os.path.join(cwd, 'logs.txt')
+config_file = os.path.join(cwd, 'metaconfig.json')
 try:
     with open(log_file):
         pass
@@ -103,41 +101,44 @@ try:
 
             def process_file(file):
                 logging.info(f'Processing file: {file}')
-                file_path = Path(file).resolve()
+                unclean_file_path = Path(file).resolve()
+                file_path = remove_metadata(unclean_file_path, config_file=config_file)
+                file_path = Path(file_path).resolve()
+                Path.unlink(unclean_file_path)
                 file_hash = hash_file(str(file_path))
                 file_entry = {
                     'path': str(file_path)
                 }
                 unique_key = file_hash
-                with db_lock:
-                    if unique_key in hash_database:
-                        original_file = hash_database[unique_key]['path']
-                        original_path = Path(original_file).resolve()
-                        if not original_path.is_file():
-                            logging.info(f'File {str(original_path)} does not exist, marking new found file as original')
-                            hash_database[unique_key] = file_entry    
-                            return
-                        if original_path != file_path:
-                            logging.info(f'Duplicate found: {str(file_path)} is a duplicate of {str(original_path)}')
-                            if file_path.is_file():
-                                file_path.unlink()
-                            with open(duplicates_file, 'a') as f:
-                                f.write(f'Duplicate deleted: {str(file_path)} which was a duplicate of {str(original_path)}\n')
-                                duplicates.append((str(file_path), str(original_path)))
-                    else:
-                        hash_database[unique_key] = file_entry
-                        logging.info(f'Finished processing file: {str(file)}')
-                
-            with ThreadPoolExecutor() as executor:
-                recursive = settings.get('recursive', True)
-                if recursive:
-                    logging.info('Scanning directory recursively...')
-                    file_paths = (p for p in Path(directory).rglob('*') if p.is_file())
-                    executor.map(process_file, file_paths)
+                if unique_key in hash_database:
+                    original_file = hash_database[unique_key]['path']
+                    original_path = Path(original_file).resolve()
+                    if not original_path.is_file():
+                        logging.info(f'File {str(original_path)} does not exist, marking new found file as original')
+                        hash_database[unique_key] = file_entry    
+                        return
+                    if original_path != file_path:
+                        logging.info(f'Duplicate found: {str(file_path)} is a duplicate of {str(original_path)}')
+                        if file_path.is_file():
+                            file_path.unlink()
+                        with open(duplicates_file, 'a') as f:
+                            f.write(f'Duplicate deleted: {str(file_path)} which was a duplicate of {str(original_path)}\n')
+                            duplicates.append((str(file_path), str(original_path)))
                 else:
-                    logging.info('Scanning directory non-recursively...')
-                    file_paths = (p for p in Path(directory).glob('*') if p.is_file())
-                    executor.map(process_file, file_paths)
+                    hash_database[unique_key] = file_entry
+                    logging.info(f'Finished processing file: {str(file)}')
+                
+            recursive = settings.get('recursive', True)
+            if recursive:
+                logging.info('Scanning directory recursively...')
+                file_paths = (p for p in Path(directory).rglob('*') if p.is_file())
+                for file in file_paths:
+                    process_file(file)
+            else:
+                logging.info('Scanning directory non-recursively...')
+                file_paths = (p for p in Path(directory).glob('*') if p.is_file())
+                for file in file_paths:
+                    process_file(file)
             return duplicates
 
         duplicates = compare_files(directory_path)
